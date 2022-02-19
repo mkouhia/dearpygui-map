@@ -4,8 +4,8 @@ version = "0.0.1"
 description = "Map widget for Dear PyGui"
 authors = ["Mikko Kouhia <mikko.kouhia@iki.fi>"]
 license = "MIT"
-readme = README.md
-repository = https://github.com/mkouhia/dearpygui_map
+readme = "README.md"
+repository = "https://github.com/mkouhia/dearpygui_map"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",

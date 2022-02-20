@@ -3,7 +3,6 @@
 import logging
 import queue
 import shutil
-import tempfile
 import threading
 from typing import Callable, Iterable
 import urllib.request
@@ -13,7 +12,7 @@ from dearpygui_map.tile_source import TileSpec
 
 class TileHandler(threading.Thread):
 
-    """Download manager"""
+    """Caching, threaded download manager"""
 
     def __init__(
         self, tile_specs: Iterable[TileSpec], callback: Callable, thread_count: int = 1
@@ -25,12 +24,22 @@ class TileHandler(threading.Thread):
         self.threads: list[DownloadThread] = []
         self.callback = callback
 
+        self.add_to_queue(tile_specs)
+
+    def add_to_queue(self, tile_specs: Iterable[TileSpec]) -> None:
+        """Find tiles from cache or add tiles to download queue
+
+        Args:
+            tile_specs (Iterable[TileSpec]): tiles to be downloaded
+        """
         for tile_spec in tile_specs:
-            self.task_queue.put(tile_spec)
+            if tile_spec.local_storage_path.exists():
+                self.result_queue.put(tile_spec)
+            else:
+                self.task_queue.put(tile_spec)
 
     def run(self):
         """Run download"""
-        # TODO add caching
         for _ in range(self.thread_count):
             thread = DownloadThread(self.task_queue, self.result_queue)
             thread.start()
@@ -68,12 +77,13 @@ class DownloadThread(threading.Thread):
                 tile_spec.download_url, headers={"User-Agent": self.user_agent}
             )
             try:
-                with urllib.request.urlopen(
-                    req
-                ) as response, tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+                tile_path = tile_spec.local_storage_path
+                tile_path.parent.mkdir(parents=True, exist_ok=True)
+                with urllib.request.urlopen(req) as response, open(
+                    tile_path, "wb"
+                ) as local_file:
                     # TODO add error handling etc.
-                    shutil.copyfileobj(response, tmp_file)
-                tile_spec.download_path = tmp_file.name
+                    shutil.copyfileobj(response, local_file)
                 self.result_queue.put(tile_spec)
             except urllib.error.HTTPError as exc:
                 logging.exception(exc)

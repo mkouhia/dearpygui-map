@@ -1,5 +1,7 @@
 """Map widget"""
 
+from pathlib import Path
+
 import dearpygui.dearpygui as dpg
 from dearpygui_map.io import TileHandler
 from dearpygui_map.tile_source import OpenStreetMap, TileSpec
@@ -109,8 +111,8 @@ class TileManager:
         # TODO what if scrolling happens while waiting for tile?
         # Suggestion: make a canvas object that is moved around, tile coordinates refer to canvas
         x_canvas, y_canvas = tile_spec.canvas_coordinates(-2331 * 256, -1185 * 256)
-        tile = MapTile(tile_spec.download_path, x_canvas, y_canvas)
-        tile.draw_image(self.tile_layer_id)
+        tile = MapTile(tile_spec.local_storage_path, x_canvas, y_canvas)
+        tile.draw_image(parent=self.tile_layer_id)
         self.tiles.append(tile)
 
     def drag_layer(self, delta_x: float, delta_y: float):
@@ -138,7 +140,7 @@ class MapTile:
 
     """Map tile"""
 
-    def __init__(self, file: str, x_canvas: int, y_canvas: int) -> None:
+    def __init__(self, file: Path, x_canvas: int, y_canvas: int) -> None:
         self.file = file
         self.width = 256
         self.height = 256
@@ -149,7 +151,7 @@ class MapTile:
 
     def draw_image(self, parent: int | str):
         """Draw tile"""
-        width, height, _, data = dpg.load_image(self.file)
+        width, height, _, data = dpg.load_image(str(self.file))
         with dpg.texture_registry():
             texture = dpg.add_static_texture(width, height, data)
         self.image_tag = dpg.draw_image(

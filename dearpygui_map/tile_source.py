@@ -2,6 +2,10 @@
 
 from dataclasses import dataclass
 from typing import Iterator
+from urllib.parse import urlparse, unquote
+from pathlib import Path
+
+from dearpygui_map.util import user_cache_dir
 
 from .geo import get_tile_xyz
 
@@ -57,7 +61,6 @@ class TileSpec:
     base_url: str
     subdomains: list[str]
     tile_size: tuple[int, int] = (256, 256)
-    download_path: str = None
 
     @property
     def download_url(self):
@@ -67,6 +70,21 @@ class TileSpec:
             x=self.tile_x,
             y=self.tile_y,
             z=self.zoom_level,
+        )
+
+    @property
+    def local_storage_path(self) -> Path:
+        """Get file location on local device"""
+        cache_root = user_cache_dir()
+        local_url = self.base_url.replace("{subdomain}.", "").format(
+            x=self.tile_x,
+            y=self.tile_y,
+            z=self.zoom_level,
+        )
+        components = urlparse(local_url)
+        Path(unquote(components.path))
+        return Path(
+            cache_root, components.netloc, *Path(unquote(components.path)).parts[1:]
         )
 
     def canvas_coordinates(self, x_offset: int, y_offset: int) -> tuple[int, int]:

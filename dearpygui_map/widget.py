@@ -101,16 +101,16 @@ class TileManager:
 
     def draw_layer(self):
         """Draw tiles"""
-        with dpg.draw_layer(label="tiles") as tile_layer:
-            for x in [0, 1]:
-                for y in [0, 1]:
+        with dpg.draw_layer(label="tiles"):
+            for x_index in [0, 1]:
+                for y_index in [0, 1]:
                     tile = MapTile(
-                        f"examples/sample_tiles/{x}-{y}.png", 256 * x, 256 * y
+                        f"examples/sample_tiles/{x_index}-{y_index}.png",
+                        256 * x_index,
+                        256 * y_index,
                     )
                     tile.draw_image()
                     self.tiles.append(tile)
-
-        return tile_layer
 
     def drag_layer(self, delta_x: float, delta_y: float):
         """Move layer to new position
@@ -137,12 +137,12 @@ class MapTile:
 
     """Map tile"""
 
-    def __init__(self, file: str, x, y) -> None:
+    def __init__(self, file: str, x_canvas, y_canvas) -> None:
         self.file = file
         self.width = 256
         self.height = 256
-        self.x_canvas = x
-        self.y_canvas = y
+        self.x_canvas = x_canvas
+        self.y_canvas = y_canvas
 
         self.image_tag: int | str = None
 
@@ -150,19 +150,22 @@ class MapTile:
         """Draw tile"""
         width, height, _, data = dpg.load_image(self.file)
         with dpg.texture_registry():
-            im = dpg.add_static_texture(width, height, data)
+            texture = dpg.add_static_texture(width, height, data)
         self.image_tag = dpg.draw_image(
-            im,
+            texture,
             (self.x_canvas, self.y_canvas),
             (self.x_canvas + self.width, self.y_canvas + self.height),
         )
 
-    def drag_image(self, x: float, y: float):
+    def drag_image(self, delta_x: float, delta_y: float):
         """Move tile"""
         dpg.configure_item(
             self.image_tag,
-            pmin=(self.x_canvas + x, self.y_canvas + y),
-            pmax=(self.x_canvas + self.width + x, self.y_canvas + self.height + y),
+            pmin=(self.x_canvas + delta_x, self.y_canvas + delta_y),
+            pmax=(
+                self.x_canvas + self.width + delta_x,
+                self.y_canvas + self.height + delta_y,
+            ),
         )
 
     def finish_drag(self, delta_x, delta_y):

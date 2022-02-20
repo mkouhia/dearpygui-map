@@ -1,13 +1,16 @@
 """Map widget"""
 
-
 import dearpygui.dearpygui as dpg
+from dearpygui_map.io import TileHandler
+from dearpygui_map.tile_source import OpenStreetMap, TileSpec
 
 
 class MapWidget:
     """Map widget for Dear PyGui"""
 
-    def __init__(self, width: int, height: int):
+    def __init__(
+        self, width: int, height: int, center: tuple[float, float], zoom_level: int
+    ):
         """Initialize map widget
 
         Args:
@@ -17,7 +20,9 @@ class MapWidget:
         self.width = width
         self.height = height
 
-        self.tile_manager = TileManager(width=width, height=height)
+        self.tile_manager = TileManager(
+            width=width, height=height, center=center, zoom_level=zoom_level
+        )
 
         self.widget: int | str = None
         self.global_handler: int | str = None
@@ -51,7 +56,6 @@ class MapWidget:
             exc_tb (_type_): _description_
         """
         del exc_type, exc_value, exc_tb  # unused
-        self.tile_manager.tile_layer_id = self._get_tile_layer()
         dpg.pop_container_stack()
 
     def _mouse_click_cb(self, sender: int | str, app_data: int) -> None:
@@ -70,29 +74,19 @@ class MapWidget:
         if self._left_mouse_pressed:
             self.tile_manager.drag_layer(delta_x, delta_y)
 
-    def _get_tile_layer(self) -> int | str:
-        layer_ids = list(
-            filter(
-                lambda i: dpg.get_item_type(i) == "mvAppItemType::mvDrawLayer"
-                and dpg.get_item_label(i) == "tiles",
-                dpg.get_item_children(self.widget, slot=2),
-            )
-        )
-        if len(layer_ids) != 1:
-            raise UserWarning(
-                "No tile source found! Use `add_tile_source` within MapWidget."
-            )
-
-        return layer_ids[0]
-
 
 class TileManager:
 
     """Tile manager for MapWidget"""
 
-    def __init__(self, width: int, height: int) -> None:
+    def __init__(
+        self, width: int, height: int, center: tuple[float, float], zoom_level: int
+    ) -> None:
         self.width = width
         self.height = height
+        self.center = center
+        self.zoom_level = zoom_level
+        self.tile_size = 256
 
         self.tile_layer_id: int | str = None
         self.tiles: list["MapTile"] = []
@@ -101,16 +95,23 @@ class TileManager:
 
     def draw_layer(self):
         """Draw tiles"""
-        with dpg.draw_layer(label="tiles"):
-            for x_index in [0, 1]:
-                for y_index in [0, 1]:
-                    tile = MapTile(
-                        f"examples/sample_tiles/{x_index}-{y_index}.png",
-                        256 * x_index,
-                        256 * y_index,
-                    )
-                    tile.draw_image()
-                    self.tiles.append(tile)
+        bbox = (60.15198, 24.90550, 60.17582, 24.96273)
+        tile_specs = OpenStreetMap.get_tile_specs(bbox, 12)
+        downloader = TileHandler(
+            tile_specs, self.draw_tile, thread_count=OpenStreetMap.thread_limit
+        )
+        downloader.start()
+
+        self.tile_layer_id = dpg.add_draw_layer(label="tiles")
+
+    def draw_tile(self, tile_spec: TileSpec):
+        """Draw tile on canvas"""
+        # TODO what if scrolling happens while waiting for tile?
+        # Suggestion: make a canvas object that is moved around, tile coordinates refer to canvas
+        x_canvas, y_canvas = tile_spec.canvas_coordinates(-2331 * 256, -1185 * 256)
+        tile = MapTile(tile_spec.download_path, x_canvas, y_canvas)
+        tile.draw_image(self.tile_layer_id)
+        self.tiles.append(tile)
 
     def drag_layer(self, delta_x: float, delta_y: float):
         """Move layer to new position
@@ -137,7 +138,7 @@ class MapTile:
 
     """Map tile"""
 
-    def __init__(self, file: str, x_canvas, y_canvas) -> None:
+    def __init__(self, file: str, x_canvas: int, y_canvas: int) -> None:
         self.file = file
         self.width = 256
         self.height = 256
@@ -146,7 +147,7 @@ class MapTile:
 
         self.image_tag: int | str = None
 
-    def draw_image(self):
+    def draw_image(self, parent: int | str):
         """Draw tile"""
         width, height, _, data = dpg.load_image(self.file)
         with dpg.texture_registry():
@@ -155,6 +156,7 @@ class MapTile:
             texture,
             (self.x_canvas, self.y_canvas),
             (self.x_canvas + self.width, self.y_canvas + self.height),
+            parent=parent,
         )
 
     def drag_image(self, delta_x: float, delta_y: float):
@@ -182,9 +184,13 @@ class MapTile:
 map_widget = MapWidget  # pylint: disable=invalid-name
 
 
-def add_map_widget(width: int, height: int) -> int | str:
+def add_map_widget(
+    width: int, height: int, center: tuple[float, float], zoom_level: int
+) -> int | str:
     """Add map widget"""
-    with MapWidget(width=width, height=height) as _widget:
+    with MapWidget(
+        width=width, height=height, center=center, zoom_level=zoom_level
+    ) as _widget:
         pass
     return _widget
 

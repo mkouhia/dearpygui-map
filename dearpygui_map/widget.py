@@ -17,7 +17,7 @@ class MapWidget:
         self.width = width
         self.height = height
 
-        self.tile_manager = TileManager()
+        self.tile_manager = TileManager(width=width, height=height)
 
         self.widget: int | str = None
         self.global_handler: int | str = None
@@ -90,7 +90,10 @@ class TileManager:
 
     """Tile manager for MapWidget"""
 
-    def __init__(self) -> None:
+    def __init__(self, width: int, height: int) -> None:
+        self.width = width
+        self.height = height
+
         self.tile_layer_id: int | str = None
         self.tiles: list["MapTile"] = []
 

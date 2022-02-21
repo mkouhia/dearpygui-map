@@ -1,13 +1,14 @@
 """Map tile sources"""
 
 from dataclasses import dataclass
+import itertools
 from typing import Iterator
 from urllib.parse import urlparse, unquote
 from pathlib import Path
 
 from dearpygui_map.util import user_cache_dir
 
-from .geo import get_tile_xyz
+from .geo import get_tile_xyz_bbox
 
 
 @dataclass
@@ -20,6 +21,26 @@ class TileServer:
     subdomains: list[str]
     thread_limit: int = 1
     tile_size: tuple[int, int] = (256, 256)
+
+    def to_tile_spec(self, tile_x: int, tile_y: int, zoom_level: int) -> "TileSpec":
+        """Get tile specification for x, y, z coordinate tuple
+
+        Args:
+            tile_x (int): Tile x coordinate
+            tile_y (int): Tile y coordinate
+            zoom_level (int): Zoom level
+
+        Returns:
+            TileSpec: Tile specification
+        """
+        return TileSpec(
+            tile_x=tile_x,
+            tile_y=tile_y,
+            zoom_level=zoom_level,
+            tile_size=self.tile_size,
+            base_url=self.base_url,
+            subdomains=self.subdomains,
+        )
 
     def get_tile_specs(
         self,
@@ -37,17 +58,9 @@ class TileServer:
         Yields:
             Iterator[TileSpec]: tile specifications
         """
-        for (tile_x, tile_y, _zoom_level) in get_tile_xyz(
-            bbox=bbox, zoom_level=zoom_level
-        ):
-            yield TileSpec(
-                tile_x=tile_x,
-                tile_y=tile_y,
-                zoom_level=_zoom_level,
-                tile_size=self.tile_size,
-                base_url=self.base_url,
-                subdomains=self.subdomains,
-            )
+        yield from itertools.starmap(
+            self.to_tile_spec, get_tile_xyz_bbox(bbox=bbox, zoom_level=zoom_level)
+        )
 
 
 @dataclass

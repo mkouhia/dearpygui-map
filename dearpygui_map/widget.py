@@ -1,8 +1,10 @@
 """Map widget"""
 
+import itertools
 from pathlib import Path
 
 import dearpygui.dearpygui as dpg
+from dearpygui_map.geo import get_tile_xyz_center, point_to_xy
 from dearpygui_map.io import TileHandler
 from dearpygui_map.tile_source import OpenStreetMap, TileSpec
 
@@ -88,7 +90,6 @@ class TileManager:
         self.height = height
         self.center = center
         self.zoom_level = zoom_level
-        self.tile_size = 256
 
         self.tile_layer_id: int | str = None
         self.tiles: list["MapTile"] = []
@@ -97,8 +98,14 @@ class TileManager:
 
     def draw_layer(self):
         """Draw tiles"""
-        bbox = (60.15198, 24.90550, 60.17582, 24.96273)
-        tile_specs = OpenStreetMap.get_tile_specs(bbox, 12)
+        tile_xyz_tuples = get_tile_xyz_center(
+            self.center,
+            self.zoom_level,
+            (self.width, self.height),
+            OpenStreetMap.tile_size,
+        )
+        tile_specs = itertools.starmap(OpenStreetMap.to_tile_spec, tile_xyz_tuples)
+
         downloader = TileHandler(
             tile_specs, self.draw_tile, thread_count=OpenStreetMap.thread_limit
         )
@@ -110,7 +117,13 @@ class TileManager:
         """Draw tile on canvas"""
         # TODO what if scrolling happens while waiting for tile?
         # Suggestion: make a canvas object that is moved around, tile coordinates refer to canvas
-        x_canvas, y_canvas = tile_spec.canvas_coordinates(-2331 * 256, -1185 * 256)
+        x_center, y_center = point_to_xy(
+            self.center[0], self.center[1], self.zoom_level
+        )
+        x_canvas, y_canvas = tile_spec.canvas_coordinates(
+            -x_center * tile_spec.tile_size[0] + self.width / 2,
+            -y_center * tile_spec.tile_size[1] + self.height / 2,
+        )
         tile = MapTile(tile_spec.local_storage_path, x_canvas, y_canvas)
         tile.draw_image(parent=self.tile_layer_id)
         self.tiles.append(tile)

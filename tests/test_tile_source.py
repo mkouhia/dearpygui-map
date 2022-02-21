@@ -3,6 +3,21 @@
 from dearpygui_map.tile_source import TileServer, TileSpec
 
 
+def test_to_tile_spec():
+    """Test tile specification generation"""
+    tile_x, tile_y, zoom_level = (2331, 1185, 12)
+    tile_size = (256, 256)
+    base_url = "test_url"
+    subdomains = ["foo"]
+
+    test_provider = TileServer("test_name", base_url, subdomains, 1, tile_size)
+
+    expected = TileSpec(tile_x, tile_y, zoom_level, base_url, subdomains, tile_size)
+    received = test_provider.to_tile_spec(tile_x, tile_y, zoom_level)
+
+    assert received == expected
+
+
 def test_tile_urls():
     """Tile urls are generated properly"""
     bbox = (60.15198, 24.90550, 60.17582, 24.96273)

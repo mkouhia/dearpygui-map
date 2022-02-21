@@ -15,7 +15,6 @@ def user_cache_dir():
     app_name = "dearpygui_map"
     if platform.system() == "Windows":
         return Path.home() / "AppData" / "Local" / app_name / "Cache"
-    elif platform.system() == "Darwin":
+    if platform.system() == "Darwin":
         return Path.home() / "Library" / "Caches" / app_name
-    else:
-        return Path.home() / ".cache" / app_name
+    return Path.home() / ".cache" / app_name

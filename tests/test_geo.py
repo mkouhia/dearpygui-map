@@ -1,6 +1,10 @@
 """Test geographic functions"""
 
-from dearpygui_map.geo import get_tile_xyz_bbox, get_tile_xyz_center, point_to_xy
+from dearpygui_map.geo import (
+    get_tile_xyz_bbox,
+    get_tile_xyz_center,
+    point_to_xy,
+)
 
 
 def test_point_to_xy():

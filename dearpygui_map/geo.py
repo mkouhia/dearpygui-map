@@ -57,7 +57,7 @@ def get_tile_xyz_bbox(
 def point_to_xy(
     latitude: float, longitude: float, zoom_level: int
 ) -> tuple[float, float]:
-    """Convert geographical point to xy pixel coordinates
+    """Convert geographical point to xy tile coordinates
 
     Args:
         latitude (float): Latitude
@@ -65,7 +65,7 @@ def point_to_xy(
         zoom_level (int): Zoom level
 
     Returns:
-        tuple[float, float]: x, y coordinates, not rounded
+        tuple[float, float]: x, y coordinates in tile units, not rounded
     """
     x_pixels = _lon_to_x_px(longitude, zoom_level)
     y_pixels = _lat_to_y_px(latitude, zoom_level)

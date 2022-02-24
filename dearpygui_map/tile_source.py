@@ -100,19 +100,15 @@ class TileSpec:
             cache_root, components.netloc, *Path(unquote(components.path)).parts[1:]
         )
 
-    def canvas_coordinates(self, x_offset: int, y_offset: int) -> tuple[int, int]:
+    def canvas_coordinates(self) -> tuple[int, int]:
         """Calculate canvas coordinates for tile
-
-        Args:
-            x_offset (int): Offset for tile x position, pixels
-            y_offset (int): Offset for tile y position, pixels
 
         Returns:
             tuple[int, int]: position (x, y)
         """
         return (
-            self.tile_x * self.tile_size[0] + x_offset,
-            self.tile_y * self.tile_size[1] + y_offset,
+            self.tile_x * self.tile_size[0],
+            self.tile_y * self.tile_size[1],
         )
 
 

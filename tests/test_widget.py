@@ -40,7 +40,7 @@ def test_widget_zoom_on_point_origins_equal(map_widget: MapWidget):
 
 def test_widget_get_screen_coordinates(map_widget: MapWidget):
     """Query point on canvas to get coordinate"""
-    received = map_widget.get_screen_coordinates(350, 250)
+    received = map_widget.get_coordinate(350, 250)
     expected = Coordinate.from_latlon(60.1641, 24.9402)
 
     assert received == expected

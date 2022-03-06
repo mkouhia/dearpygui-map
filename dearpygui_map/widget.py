@@ -48,6 +48,7 @@ class MapWidget:
         self.global_handler: int | str = None
 
         self._left_mouse_pressed: bool = False
+        self.last_drag: tuple[float, float] = (0.0, 0.0)
 
     def __enter__(self) -> int | str:
         """Enter context manager
@@ -130,6 +131,29 @@ class MapWidget:
             resolution=self.tile_manager.tile_server.tile_size,
         )
 
+    def _drag_canvas(self, delta_x: float, delta_y: float):
+        """Move canvas by dragging
+
+        Args:
+            delta_x (float): Change in x position
+            delta_y (float): Change in y position
+        """
+        self.last_drag = (delta_x, delta_y)
+        self.tile_manager.drag_layer(delta_x, delta_y)
+
+    def _finish_drag(self):
+        """Finish dragging; update tile positions"""
+        if self.last_drag == (0.0, 0.0):
+            return
+
+        self.origin = self.origin.with_screen_offset(
+            *[-i for i in self.last_drag],
+            zoom=self.zoom_level,
+        )
+        self.last_drag = (0.0, 0.0)
+
+        self.tile_manager.finish_drag()
+
     def _mouse_click_cb(self, sender: int | str, app_data: int) -> None:
         """Callback on mouse click"""
         if dpg.is_item_left_clicked(self.widget):
@@ -138,13 +162,13 @@ class MapWidget:
     def _mouse_release_cb(self, sender: int | str, app_data: int) -> None:
         """Callback on mouse release"""
         self._left_mouse_pressed = False
-        self.tile_manager.finish_drag()
+        self._finish_drag()
 
     def _mouse_drag_cb(self, sender: int | str, app_data: list[int | float]) -> None:
         """Callback on mouse drag"""
         _, delta_x, delta_y = app_data
         if self._left_mouse_pressed:
-            self.tile_manager.drag_layer(delta_x, delta_y)
+            self._drag_canvas(delta_x, delta_y)
             self.refresh_layers()
 
     def _mouse_wheel_cb(self, sender: int | str, app_data: int) -> None:

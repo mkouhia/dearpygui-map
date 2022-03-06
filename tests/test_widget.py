@@ -1,8 +1,10 @@
 """Map widget tests"""
 
 import itertools
-import pytest
+
 from dearpygui_map.geo import Coordinate
+import pytest
+from pytest_mock import MockerFixture
 
 from dearpygui_map.tile_source import OpenStreetMap, TileServer, TileSpec
 from dearpygui_map.widget import MapWidget, TileManager
@@ -44,6 +46,33 @@ def test_widget_get_screen_coordinates(map_widget: MapWidget):
     expected = Coordinate.from_latlon(60.1641, 24.9402)
 
     assert received == expected
+
+
+def test_widget_drag_canvas(map_widget: MapWidget, mocker: MockerFixture):
+    """Last drag attribute is updated and tile layer is also dragged"""
+    tilemgr_cls = mocker.patch("dearpygui_map.widget.TileManager")
+    drag = (100, 100)
+    # pylint: disable=protected-access
+    map_widget._drag_canvas(*drag)
+
+    assert map_widget.last_drag == drag
+    assert tilemgr_cls.drag_layer.called_with(*drag)
+
+
+def test_widget_finish_drag(map_widget: MapWidget, mocker: MockerFixture):
+    """Last drag is reset, origin is moved and tile layer is called
+
+    Drag so that previous center point should be found at origin
+    """
+    tilemgr_cls = mocker.patch("dearpygui_map.widget.TileManager")
+    drag = (-350, -250)  # Drag so that
+    # pylint: disable=protected-access
+    map_widget._drag_canvas(*drag)
+    map_widget._finish_drag()
+
+    assert map_widget.last_drag == (0, 0)
+    assert map_widget.origin == Coordinate.from_latlon(60.1641, 24.9402)
+    assert tilemgr_cls.finish_drag.called_once
 
 
 def test_center_point_init(tile_manager: TileManager):

@@ -38,6 +38,14 @@ def test_widget_zoom_on_point_origins_equal(map_widget: MapWidget):
     assert map_widget.origin == map_widget.tile_manager.origin
 
 
+def test_widget_get_screen_coordinates(map_widget: MapWidget):
+    """Query point on canvas to get coordinate"""
+    received = map_widget.get_screen_coordinates(350, 250)
+    expected = Coordinate.from_latlon(60.1641, 24.9402)
+
+    assert received == expected
+
+
 def test_center_point_init(tile_manager: TileManager):
     """Check that zoom level and offset are properly set"""
     assert tile_manager.zoom_level == 12

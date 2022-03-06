@@ -113,20 +113,23 @@ class MapWidget:
 
         self.tile_manager.set_origin_position(self.origin, zoom_level)
 
-    def get_screen_coordinates(
+    def get_coordinate(
         self,
-        canvas_position: tuple[float, float],
-    ) -> tuple[float, float]:
+        canvas_x: float,
+        canvas_y: float,
+    ) -> Coordinate:
         """Get lat, lon coordinates for a x, y point on canvas
 
         Args:
-            canvas_position (tuple[float, float]): X, y point on canvas
+            canvas_x (float): Point x coordinate on canvas
+            canvas_y (float): Point y coordinate on canvas
 
         Returns:
-            tuple[float, float]: Latitude and longitude for the point
+            Coordinate: Location for the point on canvas
         """
         return self.origin.with_screen_offset(
-            *canvas_position,
+            canvas_x,
+            canvas_y,
             zoom=self.zoom_level,
             resolution=self.tile_manager.tile_server.tile_size,
         )

@@ -43,7 +43,10 @@ class Coordinate:
         return (1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0
 
     def tile_xy(self, zoom: int, floor_: bool = True) -> tuple[int, int]:
-        """Calculate tile max x, y coordinates
+        """Calculate tile x, y coordinates
+
+        If coordinate falls out of projection (x, y < 0 or > max value),
+        just truncate to min/max tile
 
         Args:
             zoom (int): Zoom level
@@ -55,9 +58,14 @@ class Coordinate:
         zoom_scale = math.pow(2, zoom)
         tile_x = self.x * zoom_scale
         tile_y = self.y * zoom_scale
+
+        tile_x = min(max(tile_x, 0), zoom_scale - 1)
+        tile_y = min(max(tile_y, 0), zoom_scale - 1)
+
         if floor_:
             tile_x = math.floor(tile_x)
             tile_y = math.floor(tile_y)
+
         return (tile_x, tile_y)
 
     def latlon(self) -> tuple[float, float]:

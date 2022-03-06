@@ -93,8 +93,12 @@ class MapWidget:
         Args:
             canvas_position (tuple[float, float]): X, y point on canvas,
               which retains its screen position on zoom change.
-            zoom_level (int): New zoom level
+            zoom_level (int): New zoom level. If zoom level is less than
+              zero or greater than tile_server.max_zoom_level,
+              do nothing.
         """
+        if zoom_level < 0 or zoom_level > self.tile_manager.tile_server.max_zoom_level:
+            return
 
         focus_position = self.origin.with_screen_offset(
             *canvas_position,

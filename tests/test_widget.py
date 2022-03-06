@@ -56,14 +56,6 @@ def test_center_point_move(tile_manager: TileManager):
     assert tile_manager.origin_offset == (-1153409.8236444446, -616473.2951275909)
 
 
-def test_visible_tile_range(tile_manager: TileManager):
-    """Check that correct min/max tiles are found"""
-    expected = ((2330, 1184), (2333, 1186))
-    received = tile_manager.visible_tile_range
-
-    assert received == expected
-
-
 def test_manager_initial_tiles(tile_manager: TileManager):
     """Initial tiles are correct"""
     expected_coord_range = [(2330, 1184), (2333, 1186)]

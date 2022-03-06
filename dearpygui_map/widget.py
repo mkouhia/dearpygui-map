@@ -3,6 +3,7 @@
 import itertools
 from pathlib import Path
 import sys
+from typing import Iterator
 
 import dearpygui.dearpygui as dpg
 from dearpygui_map.geo import Coordinate
@@ -177,7 +178,6 @@ class TileManager:
 
         self.last_drag: tuple[float, float] = (0.0, 0.0)
         self.origin_offset = (0, 0)
-        self._previous_draw_tiles = None
 
         self.set_origin_position(origin, zoom_level)
 
@@ -218,43 +218,43 @@ class TileManager:
             ),
         )
 
-        tile_specs = list(self._required_tiles_for_view())
+        missing_tiles = list(self._required_tiles_for_view())
 
-        if len(tile_specs) == 0:
+        if len(missing_tiles) == 0:
             return
 
         # TODO purge those tiles from draw layer that are too far away to display
 
         # FIXME make tile handler persistent (do not spawn new handlers whenever scrolling)
         downloader = TileHandler(
-            tile_specs, self.draw_tile, thread_count=self.tile_server.thread_limit
+            missing_tiles, self.draw_tile, thread_count=self.tile_server.thread_limit
         )
         downloader.start()
 
-    def _required_tiles_for_view(self):
+    def _required_tiles_for_view(self) -> Iterator[TileSpec]:
+        """Get tiles that need to be downloaded for a view
+
+        Check that which tiles are already in `self.tiles`, return specs for
+        the others that are not.
+
+        Yields:
+            TileSpec: Tile specification
+        """
         # TODO add some margin - download more tiles than should be absolutely required
-        min_xy, max_xy = self.visible_tile_range
+        tile_xyz_tuples = self._get_visible_tiles()
 
-        self._previous_draw_tiles = min_xy, max_xy
-
-        tile_xyz_tuples = itertools.product(
-            range(min_xy[0], max_xy[0] + 1),
-            range(min_xy[1], max_xy[1] + 1),
-            (self.zoom_level,),
-        )
         tile_specs = itertools.starmap(self.tile_server.to_tile_spec, tile_xyz_tuples)
         tile_specs = filter(lambda ts: ts not in self.tiles, tile_specs)
 
         yield from tile_specs
 
-    @property
-    def visible_tile_range(self) -> tuple[tuple[int, int], tuple[int, int]]:
+    def _get_visible_tiles(self) -> Iterator[tuple[int, int, int]]:
         """Calculate which tiles should be visible
 
         Compute given current origin offset, drag and zoom level
 
-        Returns:
-            tuple[tuple[int, int], tuple[int, int]]: tile (x_min, y_min), (x_max, y_max)
+        Yields:
+            tuple[int, int, int]: tile (x, y, z) values
         """
         origin_offset = tuple(-i for i in self.last_drag)
         min_point = self.origin.with_screen_offset(
@@ -263,6 +263,15 @@ class TileManager:
         )
         max_point = min_point.with_screen_offset(
             *self.viewport_size, zoom=self.zoom_level
+        )
+
+        min_xy = min_point.tile_xy(self.zoom_level)
+        max_xy = max_point.tile_xy(self.zoom_level)
+
+        yield from itertools.product(
+            range(min_xy[0], max_xy[0] + 1),
+            range(min_xy[1], max_xy[1] + 1),
+            (self.zoom_level,),
         )
 
         return tuple(p.tile_xy(zoom=self.zoom_level) for p in [min_point, max_point])
@@ -330,7 +339,7 @@ class MapTile:
             try:
                 with dpg.texture_registry():
                     texture = dpg.add_static_texture(width, height, data)
-            except Exception as err: # pylint: disable=broad-except
+            except Exception as err:  # pylint: disable=broad-except
                 sys.stderr.write("Could not add texture - ", err)
 
             self.image_tag = dpg.draw_image(

@@ -42,18 +42,22 @@ class Coordinate:
         lat_rad = math.radians(lat)
         return (1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0
 
-    def tile_xy(self, zoom: int) -> tuple[int, int]:
+    def tile_xy(self, zoom: int, floor_: bool = True) -> tuple[int, int]:
         """Calculate tile max x, y coordinates
 
         Args:
             zoom (int): Zoom level
+            floor_ (bool): Truncate coordinates to integer tile numbers
 
         Returns:
             tuple[int, int]: Tile x, y coordinates
         """
         zoom_scale = math.pow(2, zoom)
-        tile_x = math.floor(self.x * zoom_scale)
-        tile_y = math.floor(self.y * zoom_scale)
+        tile_x = self.x * zoom_scale
+        tile_y = self.y * zoom_scale
+        if floor_:
+            tile_x = math.floor(tile_x)
+            tile_y = math.floor(tile_y)
         return (tile_x, tile_y)
 
     def latlon(self) -> tuple[float, float]:

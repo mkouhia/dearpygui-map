@@ -47,6 +47,16 @@ def test_coordinate_tile_xy():
     assert received == expected
 
 
+def test_coordinate_tile_xy_not_floor():
+    """Tile x, y coordinates are not floored"""
+    coord = Coordinate(x=0.5692783333333333, y=0.28948570416212227)
+
+    expected = (2331.7640533333333, 1185.7334442480528)
+    received = coord.tile_xy(zoom=12, floor_=False)
+
+    assert received == expected
+
+
 def test_coordinate_latlon():
     """Coordinate to lat/lon conversion works as expected"""
     coord = Coordinate(x=0.5692783333333333, y=0.28948570416212227)
@@ -85,7 +95,6 @@ def test_coordinate_with_screen_offset():
     coord = Coordinate.from_latlon(60.1641, 24.9402)
 
     received = coord.with_screen_offset(-350, -250, zoom=12)
-    print(received.latlon())
     expected = Coordinate.from_latlon(60.20677453949039, 24.820037036132817)
 
     assert received == expected

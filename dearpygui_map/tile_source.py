@@ -19,6 +19,7 @@ class TileServer:
     name: str
     base_url: str
     subdomains: list[str]
+    max_zoom_level: int
     thread_limit: int = 1
     tile_size: tuple[int, int] = (256, 256)
 
@@ -116,5 +117,6 @@ OpenStreetMap = TileServer(
     name="OpenStreetMap",
     base_url="http://{subdomain}.tile.openstreetmap.org/{z}/{x}/{y}.png",
     subdomains=["a", "b", "c"],
+    max_zoom_level=19,
     thread_limit=2,
 )

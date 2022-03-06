@@ -1,11 +1,11 @@
 """Map widget"""
 
 import itertools
-import math
-from pathlib import Path
+import sys
+from typing import Iterator
 
 import dearpygui.dearpygui as dpg
-from dearpygui_map.geo import point_to_xy
+from dearpygui_map.geo import Coordinate
 from dearpygui_map.io import TileHandler
 from dearpygui_map.tile_source import TileServer, TileSpec
 
@@ -30,10 +30,15 @@ class MapWidget:
         self.width = width
         self.height = height
 
+        self.origin = Coordinate.from_latlon(*center).with_screen_offset(
+            -width / 2, -height / 2, zoom=zoom_level, resolution=tile_server.tile_size
+        )
+        self.zoom_level = zoom_level
+
         self.tile_manager = TileManager(
+            origin=self.origin,
             width=width,
             height=height,
-            center=center,
             zoom_level=zoom_level,
             tile_server=tile_server,
         )
@@ -42,6 +47,7 @@ class MapWidget:
         self.global_handler: int | str = None
 
         self._left_mouse_pressed: bool = False
+        self.last_drag: tuple[float, float] = (0.0, 0.0)
 
     def __enter__(self) -> int | str:
         """Enter context manager
@@ -53,6 +59,7 @@ class MapWidget:
             dpg.add_mouse_click_handler(callback=self._mouse_click_cb)
             dpg.add_mouse_drag_handler(callback=self._mouse_drag_cb)
             dpg.add_mouse_release_handler(callback=self._mouse_release_cb)
+            dpg.add_mouse_wheel_handler(callback=self._mouse_wheel_cb)
 
         with dpg.drawlist(width=self.width, height=self.height) as self.widget:
             dpg.draw_rectangle((0, 0), (self.width, self.height))
@@ -60,7 +67,7 @@ class MapWidget:
 
         dpg.push_container_stack(self.widget)
 
-        self.tile_manager.update_tile_layer()
+        self.tile_manager.draw_layer()
         return self.widget
 
     def __exit__(self, exc_type, exc_value, exc_tb):
@@ -74,6 +81,88 @@ class MapWidget:
         del exc_type, exc_value, exc_tb  # unused
         dpg.pop_container_stack()
 
+    def draw_layers(self):
+        """Redraw tile layer, for example after dragging operation"""
+        self.tile_manager.draw_layer()
+
+    def zoom_on_point(self, canvas_position: tuple[float, float], zoom_level: int):
+        """Zoom in/out, while keeping focus on given point
+
+        NOTE: it is necessary to call `self.refresh_layers` after this.
+
+        Args:
+            canvas_position (tuple[float, float]): X, y point on canvas,
+              which retains its screen position on zoom change.
+            zoom_level (int): New zoom level. If zoom level is less than
+              zero or greater than tile_server.max_zoom_level,
+              do nothing.
+        """
+        if zoom_level < 0 or zoom_level > self.tile_manager.tile_server.max_zoom_level:
+            return
+
+        focus_position = self.origin.with_screen_offset(
+            *canvas_position,
+            zoom=self.zoom_level,  # old zoom level
+            resolution=self.tile_manager.tile_server.tile_size,
+        )
+
+        self.origin = focus_position.with_screen_offset(
+            *[-i for i in canvas_position],
+            zoom=zoom_level,  # new zoom level
+            resolution=self.tile_manager.tile_server.tile_size,
+        )
+
+        self.zoom_level = zoom_level
+
+        self.tile_manager.set_origin(self.origin, zoom_level)
+
+    def get_coordinate(
+        self,
+        canvas_x: float,
+        canvas_y: float,
+    ) -> Coordinate:
+        """Get lat, lon coordinates for a x, y point on canvas
+
+        Args:
+            canvas_x (float): Point x coordinate on canvas
+            canvas_y (float): Point y coordinate on canvas
+
+        Returns:
+            Coordinate: Location for the point on canvas
+        """
+        return self.origin.with_screen_offset(
+            canvas_x,
+            canvas_y,
+            zoom=self.zoom_level,
+            resolution=self.tile_manager.tile_server.tile_size,
+        )
+
+    def _drag_canvas(self, delta_x: float, delta_y: float):
+        """Move canvas by dragging
+
+        NOTE: it is necessary to call `self.refresh_layers` after this,
+        and `self._finish_drag`, when dragging is released.
+
+        Args:
+            delta_x (float): Change in x position
+            delta_y (float): Change in y position
+        """
+        self.last_drag = (delta_x, delta_y)
+        self.tile_manager.drag_layer(delta_x, delta_y)
+
+    def _finish_drag(self):
+        """Finish dragging; update tile positions"""
+        if self.last_drag == (0.0, 0.0):
+            return
+
+        self.origin = self.origin.with_screen_offset(
+            *[-i for i in self.last_drag],
+            zoom=self.zoom_level,
+        )
+        self.last_drag = (0.0, 0.0)
+
+        self.tile_manager.finish_drag()
+
     def _mouse_click_cb(self, sender: int | str, app_data: int) -> None:
         """Callback on mouse click"""
         if dpg.is_item_left_clicked(self.widget):
@@ -82,13 +171,22 @@ class MapWidget:
     def _mouse_release_cb(self, sender: int | str, app_data: int) -> None:
         """Callback on mouse release"""
         self._left_mouse_pressed = False
-        self.tile_manager.finish_drag()
+        self._finish_drag()
 
     def _mouse_drag_cb(self, sender: int | str, app_data: list[int | float]) -> None:
         """Callback on mouse drag"""
         _, delta_x, delta_y = app_data
         if self._left_mouse_pressed:
-            self.tile_manager.drag_layer(delta_x, delta_y)
+            self._drag_canvas(delta_x, delta_y)
+            self.draw_layers()
+
+    def _mouse_wheel_cb(self, sender: int | str, app_data: int) -> None:
+        """Callback on mouse wheel"""
+        del sender  # unused
+        delta_zoom = app_data
+        canvas_pos = dpg.get_drawing_mouse_pos()
+        self.zoom_on_point(canvas_pos, self.zoom_level + delta_zoom)
+        self.draw_layers()
 
 
 class TileManager:
@@ -97,41 +195,40 @@ class TileManager:
 
     def __init__(
         self,
+        origin: Coordinate,
         width: int,
         height: int,
-        center: tuple[float, float],
         zoom_level: int,
         tile_server: TileServer,
     ) -> None:
         self.viewport_size = width, height
+        self.origin = origin
         self.zoom_level = zoom_level
         self.tile_server = tile_server
 
-        self.layer_extent_pixels: tuple[tuple[int, int], tuple[int, int]] = None
         self.tile_draw_node_id: int | str = None
         self.tiles: list[TileSpec] = []
 
         self.last_drag: tuple[float, float] = (0.0, 0.0)
         self.origin_offset = (0, 0)
 
-        self.center_point(center, zoom_level)
+        self.set_origin(origin, zoom_level)
 
-    def center_point(self, center: tuple[float, float], zoom_level: int):
-        """Center point on widget
+    def set_origin(self, origin: Coordinate, zoom_level: int):
+        """Set widget map origin position
 
         Set self.zoom_level and self.origin_offset
 
         Args:
-            center (tuple[float, float]): Center point: latitude, longitude
+            origin (Coordinate): Origin point
             zoom_level (int): Zoom level
         """
-        center_xy = point_to_xy(center[0], center[1], zoom_level)
+        self.origin = origin
+        origin_xy = origin.tile_xy(zoom_level, floor_=False)
 
         self.zoom_level = zoom_level
         self.origin_offset: tuple[float, float] = tuple(
-            -center_xy[i] * self.tile_server.tile_size[i]
-            + self.viewport_size[i] / 2
-            + self.last_drag[i]
+            -origin_xy[i] * self.tile_server.tile_size[i] + self.last_drag[i]
             for i in range(2)
         )
 
@@ -140,9 +237,8 @@ class TileManager:
         tile_layer = dpg.add_draw_layer(label="tiles")
         self.tile_draw_node_id = dpg.add_draw_node(parent=tile_layer)
 
-    def update_tile_layer(self):
+    def draw_layer(self):
         """Update tile layer, if there are too few tiles displayed"""
-
         dpg.apply_transform(
             self.tile_draw_node_id,
             dpg.create_translation_matrix(
@@ -150,110 +246,103 @@ class TileManager:
             ),
         )
 
-        if (
-            self.layer_extent_pixels is not None
-            and self.layer_extent_pixels[0][0] + self.last_drag[0] < 0
-            and self.layer_extent_pixels[0][1] + self.last_drag[1] < 0
-            and self.layer_extent_pixels[1][0] + self.last_drag[0]
-            > self.viewport_size[0]
-            and self.layer_extent_pixels[1][1] + self.last_drag[1]
-            > self.viewport_size[1]
-        ):
-            # TODO add some margin
+        missing_tiles = list(self._required_tiles_for_view())
+
+        if len(missing_tiles) == 0:
             return
-
-        # TODO add some margin - download more tiles than should be absolutely required
-        min_xy, max_xy = self.visible_tile_range
-        self.layer_extent_pixels = (
-            self._to_canvas_pixels(*min_xy),
-            self._to_canvas_pixels(max_xy[0] + 1, max_xy[1] + 1),
-        )
-
-        tile_xyz_tuples = itertools.product(
-            range(min_xy[0], max_xy[0] + 1),
-            range(min_xy[1], max_xy[1] + 1),
-            (self.zoom_level,),
-        )
-        tile_specs = itertools.starmap(self.tile_server.to_tile_spec, tile_xyz_tuples)
-        tile_specs = filter(lambda ts: ts not in self.tiles, tile_specs)
 
         # TODO purge those tiles from draw layer that are too far away to display
 
         # FIXME make tile handler persistent (do not spawn new handlers whenever scrolling)
         downloader = TileHandler(
-            tile_specs, self.draw_tile, thread_count=self.tile_server.thread_limit
+            missing_tiles, self.draw_tile, thread_count=self.tile_server.thread_limit
         )
         downloader.start()
 
-    @property
-    def visible_tile_range(self) -> tuple[tuple[int, int], tuple[int, int]]:
+    def _required_tiles_for_view(self) -> Iterator[TileSpec]:
+        """Get tiles that need to be downloaded for a view
+
+        Check that which tiles are already in `self.tiles`, return specs for
+        the others that are not.
+
+        Yields:
+            TileSpec: Tile specification
+        """
+        # TODO add some margin - download more tiles than should be absolutely required
+        tile_xyz_tuples = self._get_visible_tiles()
+
+        tile_specs = itertools.starmap(self.tile_server.to_tile_spec, tile_xyz_tuples)
+        tile_specs = filter(lambda ts: ts not in self.tiles, tile_specs)
+
+        yield from tile_specs
+
+    def _get_visible_tiles(self) -> Iterator[tuple[int, int, int]]:
         """Calculate which tiles should be visible
 
         Compute given current origin offset, drag and zoom level
 
-        Returns:
-            tuple[tuple[int, int], tuple[int, int]]: tile (x_min, y_min), (x_max, y_max)
+        Yields:
+            tuple[int, int, int]: tile (x, y, z) values
         """
-        return tuple(
-            tuple(
-                math.floor(
-                    (
-                        -(self.origin_offset[i] + self.last_drag[i])
-                        + self.viewport_size[i] * is_max
-                    )
-                    / self.tile_server.tile_size[i]
-                )
-                for i in range(2)
-            )
-            for is_max in [0, 1]
+        origin_offset = tuple(-i for i in self.last_drag)
+        min_point = self.origin.with_screen_offset(
+            *origin_offset,
+            zoom=self.zoom_level,
+        )
+        max_point = min_point.with_screen_offset(
+            *self.viewport_size, zoom=self.zoom_level
         )
 
-    def _to_canvas_pixels(self, tile_x: int, tile_y: int) -> tuple[int, int]:
-        """Convert x, y coordinates to canvas pixel coordinates
+        min_xy = min_point.tile_xy(self.zoom_level)
+        max_xy = max_point.tile_xy(self.zoom_level)
 
-        Args:
-            tile_x (int): Tile x coordinate
-            tile_y (int): Tile y coordinate
-
-        Returns:
-            tuple[int, int]: x, y in canvas pixels
-        """
-        return (
-            tile_x * self.tile_server.tile_size[0] + self.origin_offset[0],
-            tile_y * self.tile_server.tile_size[1] + self.origin_offset[1],
+        yield from itertools.product(
+            range(min_xy[0], max_xy[0] + 1),
+            range(min_xy[1], max_xy[1] + 1),
+            (self.zoom_level,),
         )
+
+        return tuple(p.tile_xy(zoom=self.zoom_level) for p in [min_point, max_point])
 
     def draw_tile(self, tile_spec: TileSpec):
-        """Draw tile on canvas"""
+        """Draw tile on canvas
+
+        If image loading fails, draw gray area. Otherwise, add tile
+        spec to self.tiles
+        """
         if tile_spec in self.tiles:
             return
-        tile = MapTile(tile_spec.local_storage_path, *tile_spec.canvas_coordinates())
 
-        tile.draw_image(parent=self.tile_draw_node_id)
-        self.tiles.append(tile_spec)
+        tile = MapTile(tile_spec)
+        if tile.draw_image(parent=self.tile_draw_node_id):
+            self.tiles.append(tile_spec)
 
     def drag_layer(self, delta_x: float, delta_y: float):
         """Move layer to new position
+
+        NOTE: after calling this, one must redraw contents with
+        `TileManager.draw_layer`. Dragging action is finished with
+        `TileManager.finish_drag`, after mouse button is released.
 
         Args:
             delta_x (float): Change in x position
             delta_y (float): Change in y position
         """
         self.last_drag = (delta_x, delta_y)
-        self.update_tile_layer()
 
     def finish_drag(self):
         """Finish dragging; update tile positions"""
         if self.last_drag == (0.0, 0.0):
             return
 
-        self.layer_extent_pixels = tuple(
-            tuple(min_or_max[i] + self.last_drag[i] for i in range(2))
-            for min_or_max in self.layer_extent_pixels
-        )
-
         self.origin_offset = tuple(
             sum(i) for i in zip(self.origin_offset, self.last_drag)
+        )
+
+        origin_offset = tuple(-i for i in self.last_drag)
+        self.origin = self.origin.with_screen_offset(
+            *origin_offset,
+            zoom=self.zoom_level,
         )
         self.last_drag = (0.0, 0.0)
 
@@ -262,26 +351,44 @@ class MapTile:
 
     """Map tile"""
 
-    def __init__(self, file: Path, x_canvas: int, y_canvas: int) -> None:
-        self.file = file
-        self.width = 256
-        self.height = 256
-        self.x_canvas = x_canvas
-        self.y_canvas = y_canvas
+    def __init__(self, tile_spec: TileSpec):
+        self.file = tile_spec.local_storage_path
+        self.x_canvas, self.y_canvas = tile_spec.canvas_coordinates()
+        self.width, self.height = tile_spec.tile_size
+        self.tile_spec = tile_spec
 
-        self.image_tag: int | str = None
+        self.image_tag = None
 
-    def draw_image(self, parent: int | str):
-        """Draw tile"""
-        width, height, _, data = dpg.load_image(str(self.file))
-        with dpg.texture_registry():
-            texture = dpg.add_static_texture(width, height, data)
+    def draw_image(self, parent: int | str) -> bool:
+        """Draw tile
+
+        Place tile on canvas. If image loading fails, draw gray area.
+
+        Returns:
+            bool: True if image loading failed, False otherwise
+        """
+        pmin = (self.x_canvas, self.y_canvas)
+        pmax = (self.x_canvas + self.width, self.y_canvas + self.height)
+
+        dpg_image = dpg.load_image(str(self.file))
+        if dpg_image is None:
+            dpg.draw_rectangle(pmin, pmax, fill=(128, 128, 128, 255), parent=parent)
+            return False
+
+        width, height, _, data = dpg_image
+        try:
+            with dpg.texture_registry():
+                texture = dpg.add_static_texture(width, height, data)
+        except Exception as err:  # pylint: disable=broad-except
+            sys.stderr.write("Could not add texture - ", err)
+
         self.image_tag = dpg.draw_image(
             texture,
-            (self.x_canvas, self.y_canvas),
-            (self.x_canvas + self.width, self.y_canvas + self.height),
+            pmin,
+            pmax,
             parent=parent,
         )
+        return True
 
 
 map_widget = MapWidget  # pylint: disable=invalid-name

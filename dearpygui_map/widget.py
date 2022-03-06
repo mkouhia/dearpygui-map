@@ -1,7 +1,6 @@
 """Map widget"""
 
 import itertools
-from pathlib import Path
 import sys
 from typing import Iterator
 

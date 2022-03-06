@@ -67,7 +67,7 @@ class MapWidget:
 
         dpg.push_container_stack(self.widget)
 
-        self.tile_manager.update_tile_layer()
+        self.tile_manager.draw_layer()
         return self.widget
 
     def __exit__(self, exc_type, exc_value, exc_tb):
@@ -81,9 +81,9 @@ class MapWidget:
         del exc_type, exc_value, exc_tb  # unused
         dpg.pop_container_stack()
 
-    def refresh_layers(self):
-        """Redraw tile layer"""
-        self.tile_manager.update_tile_layer()
+    def draw_layers(self):
+        """Redraw tile layer, for example after dragging operation"""
+        self.tile_manager.draw_layer()
 
     def zoom_on_point(self, canvas_position: tuple[float, float], zoom_level: int):
         """Zoom in/out, while keeping focus on given point
@@ -110,7 +110,7 @@ class MapWidget:
 
         self.zoom_level = zoom_level
 
-        self.tile_manager.set_origin_position(self.origin, zoom_level)
+        self.tile_manager.set_origin(self.origin, zoom_level)
 
     def get_coordinate(
         self,
@@ -135,6 +135,9 @@ class MapWidget:
 
     def _drag_canvas(self, delta_x: float, delta_y: float):
         """Move canvas by dragging
+
+        NOTE: it is necessary to call `self.refresh_layers` after this,
+        and `self._finish_drag`, when dragging is released.
 
         Args:
             delta_x (float): Change in x position
@@ -171,7 +174,7 @@ class MapWidget:
         _, delta_x, delta_y = app_data
         if self._left_mouse_pressed:
             self._drag_canvas(delta_x, delta_y)
-            self.refresh_layers()
+            self.draw_layers()
 
     def _mouse_wheel_cb(self, sender: int | str, app_data: int) -> None:
         """Callback on mouse wheel"""
@@ -179,7 +182,7 @@ class MapWidget:
         delta_zoom = app_data
         canvas_pos = dpg.get_drawing_mouse_pos()
         self.zoom_on_point(canvas_pos, self.zoom_level + delta_zoom)
-        self.refresh_layers()
+        self.draw_layers()
 
 
 class TileManager:
@@ -205,19 +208,15 @@ class TileManager:
         self.last_drag: tuple[float, float] = (0.0, 0.0)
         self.origin_offset = (0, 0)
 
-        self.set_origin_position(origin, zoom_level)
+        self.set_origin(origin, zoom_level)
 
-    def set_origin_position(
-        self,
-        origin: Coordinate,
-        zoom_level: int,
-    ):
+    def set_origin(self, origin: Coordinate, zoom_level: int):
         """Set widget map origin position
 
         Set self.zoom_level and self.origin_offset
 
         Args:
-            origin (tuple[float, float]): Origin point
+            origin (Coordinate): Origin point
             zoom_level (int): Zoom level
         """
         self.origin = origin
@@ -234,9 +233,8 @@ class TileManager:
         tile_layer = dpg.add_draw_layer(label="tiles")
         self.tile_draw_node_id = dpg.add_draw_node(parent=tile_layer)
 
-    def update_tile_layer(self):
+    def draw_layer(self):
         """Update tile layer, if there are too few tiles displayed"""
-
         dpg.apply_transform(
             self.tile_draw_node_id,
             dpg.create_translation_matrix(
@@ -314,6 +312,10 @@ class TileManager:
 
     def drag_layer(self, delta_x: float, delta_y: float):
         """Move layer to new position
+
+        NOTE: after calling this, one must redraw contents with
+        `TileManager.draw_layer`. Dragging action is finished with
+        `TileManager.finish_drag`, after mouse button is released.
 
         Args:
             delta_x (float): Change in x position

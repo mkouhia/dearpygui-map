@@ -87,7 +87,7 @@ def test_center_point_move(tile_manager: TileManager):
     center = Coordinate.from_latlon(59.3315, 18.0560)
     origin = center.with_screen_offset(-350, -250, zoom=zoom_level)
 
-    tile_manager.set_origin_position(origin, zoom_level)
+    tile_manager.set_origin(origin, zoom_level)
 
     assert tile_manager.zoom_level == zoom_level
     assert tile_manager.origin_offset == (-1153409.8236444446, -616473.2951275909)
@@ -159,6 +159,6 @@ def test_manager_origin_change_after_drag(tile_manager: TileManager):
 def test_manager_origin_same_after_zoom(tile_manager: TileManager):
     """When zoom changes, origin stays"""
     origin_0 = tile_manager.origin
-    tile_manager.set_origin_position(origin_0, tile_manager.zoom_level + 1)
+    tile_manager.set_origin(origin_0, tile_manager.zoom_level + 1)
 
     assert tile_manager.origin == origin_0

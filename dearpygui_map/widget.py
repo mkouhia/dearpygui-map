@@ -301,14 +301,17 @@ class TileManager:
         return tuple(p.tile_xy(zoom=self.zoom_level) for p in [min_point, max_point])
 
     def draw_tile(self, tile_spec: TileSpec):
-        """Draw tile on canvas"""
+        """Draw tile on canvas
+
+        If image loading fails, draw gray area. Otherwise, add tile
+        spec to self.tiles
+        """
         if tile_spec in self.tiles:
             return
 
         tile = MapTile(tile_spec)
-        tile.draw_image(parent=self.tile_draw_node_id)
-
-        self.tiles.append(tile_spec)
+        if tile.draw_image(parent=self.tile_draw_node_id):
+            self.tiles.append(tile_spec)
 
     def drag_layer(self, delta_x: float, delta_y: float):
         """Move layer to new position
@@ -352,30 +355,36 @@ class MapTile:
 
         self.image_tag = None
 
-    def draw_image(self, parent: int | str):
-        """Draw tile"""
+    def draw_image(self, parent: int | str) -> bool:
+        """Draw tile
+
+        Place tile on canvas. If image loading fails, draw gray area.
+
+        Returns:
+            bool: True if image loading failed, False otherwise
+        """
         pmin = (self.x_canvas, self.y_canvas)
         pmax = (self.x_canvas + self.width, self.y_canvas + self.height)
 
         dpg_image = dpg.load_image(str(self.file))
         if dpg_image is None:
-            dpg.draw_rectangle(
-                pmin, pmax, color=(255, 0, 0, 255), fill=(255, 0, 0, 255), parent=parent
-            )
-        else:
-            width, height, _, data = dpg_image
-            try:
-                with dpg.texture_registry():
-                    texture = dpg.add_static_texture(width, height, data)
-            except Exception as err:  # pylint: disable=broad-except
-                sys.stderr.write("Could not add texture - ", err)
+            dpg.draw_rectangle(pmin, pmax, fill=(128, 128, 128, 255), parent=parent)
+            return False
 
-            self.image_tag = dpg.draw_image(
-                texture,
-                pmin,
-                pmax,
-                parent=parent,
-            )
+        width, height, _, data = dpg_image
+        try:
+            with dpg.texture_registry():
+                texture = dpg.add_static_texture(width, height, data)
+        except Exception as err:  # pylint: disable=broad-except
+            sys.stderr.write("Could not add texture - ", err)
+
+        self.image_tag = dpg.draw_image(
+            texture,
+            pmin,
+            pmax,
+            parent=parent,
+        )
+        return True
 
 
 map_widget = MapWidget  # pylint: disable=invalid-name

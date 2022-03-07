@@ -64,6 +64,7 @@ class MapWidget:
         with dpg.drawlist(width=self.width, height=self.height) as self.widget:
             dpg.draw_rectangle((0, 0), (self.width, self.height))
             self.tile_manager.add_tile_layer()
+            self.tile_manager.add_tile_license()
 
         dpg.push_container_stack(self.widget)
 
@@ -236,6 +237,27 @@ class TileManager:
         """Add Dear PyGui draw layer for map tiles"""
         tile_layer = dpg.add_draw_layer(label="tiles")
         self.tile_draw_node_id = dpg.add_draw_node(parent=tile_layer)
+
+    def add_tile_license(self):
+        """Add tile lisence as a new layer"""
+        width_guess = len(self.tile_server.license_text) * 7 + 4
+
+        x_text = max(0, self.viewport_size[0] - width_guess)
+        y_text = max(0, self.viewport_size[1] - 13)
+
+        with dpg.draw_layer(label="license"):
+            dpg.draw_rectangle(
+                (max(0, x_text - 4), y_text),
+                self.viewport_size,
+                fill=(255, 255, 255, 100),
+                color=(255, 255, 255, 100),
+            )
+            dpg.draw_text(
+                (x_text, y_text),
+                color=(0, 0, 0, 255),
+                text=self.tile_server.license_text,
+                size=13,
+            )
 
     def draw_layer(self):
         """Update tile layer, if there are too few tiles displayed"""

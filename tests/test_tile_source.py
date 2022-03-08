@@ -27,6 +27,7 @@ def test_tile_urls():
         name="test provider",
         base_url="http://{subdomain}.tile.test_provider.org/{z}/{x}/{y}.png",
         subdomains=["a"],
+        license_text="test license text",
         max_zoom_level=19,
         tile_size=(256, 256),
     )

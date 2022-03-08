@@ -24,8 +24,13 @@ class MapWidget:
         """Initialize map widget
 
         Args:
-            width (int): widget width
-            height (int): widget height
+            width (int): Widget width
+            height (int): Widget height
+            center (tuple[float, float]): Center point coordinates:
+              latitude, longitude
+            zoom_level (int): Tile map zoom level
+            tile_server (TileServer): Tile supplier, from
+              dearpygui_map.tile_source
         """
         self.width = width
         self.height = height
@@ -49,8 +54,8 @@ class MapWidget:
         self._left_mouse_pressed: bool = False
         self.last_drag: tuple[float, float] = (0.0, 0.0)
 
-    def __enter__(self) -> int | str:
-        """Enter context manager
+    def insert_widget(self) -> int | str:
+        """Draw widget, insert Dear PyGui code
 
         Returns:
             int | str: Dear PyGui drawlist, with map content
@@ -66,21 +71,8 @@ class MapWidget:
             self.tile_manager.add_tile_layer()
             self.tile_manager.add_tile_license()
 
-        dpg.push_container_stack(self.widget)
-
         self.tile_manager.draw_layer()
         return self.widget
-
-    def __exit__(self, exc_type, exc_value, exc_tb):
-        """Exit context manager
-
-        Args:
-            exc_type (_type_): _description_
-            exc_value (_type_): _description_
-            exc_tb (_type_): _description_
-        """
-        del exc_type, exc_value, exc_tb  # unused
-        dpg.pop_container_stack()
 
     def draw_layers(self):
         """Redraw tile layer, for example after dragging operation"""
@@ -413,9 +405,6 @@ class MapTile:
         return True
 
 
-map_widget = MapWidget  # pylint: disable=invalid-name
-
-
 def add_map_widget(
     width: int,
     height: int,
@@ -423,18 +412,22 @@ def add_map_widget(
     zoom_level: int,
     tile_server: TileServer,
 ) -> int | str:
-    """Add map widget"""
-    with MapWidget(
+    """Add map widget
+    
+    Args:
+        width (int): Widget width
+        height (int): Widget height
+        center (tuple[float, float]): Center point coordinates:
+            latitude, longitude
+        zoom_level (int): Tile map zoom level
+        tile_server (TileServer): Tile supplier, from
+            dearpygui_map.tile_source
+    """
+    map_widget = MapWidget(
         width=width,
         height=height,
         center=center,
         zoom_level=zoom_level,
         tile_server=tile_server,
-    ) as _widget:
-        pass
-    return _widget
-
-
-def configure_tile_layer() -> int | str:
-    """Configure tile layer"""
-    ...
+    )
+    return map_widget.insert_widget()

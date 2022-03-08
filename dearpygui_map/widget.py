@@ -413,7 +413,7 @@ def add_map_widget(
     tile_server: TileServer,
 ) -> int | str:
     """Add map widget
-    
+
     Args:
         width (int): Widget width
         height (int): Widget height

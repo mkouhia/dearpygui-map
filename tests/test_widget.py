@@ -2,10 +2,10 @@
 
 import itertools
 
-from dearpygui_map.geo import Coordinate
 import pytest
 from pytest_mock import MockerFixture
 
+from dearpygui_map.geo import Coordinate
 from dearpygui_map.tile_source import OpenStreetMap, TileServer, TileSpec
 from dearpygui_map.widget import MapWidget, TileManager
 

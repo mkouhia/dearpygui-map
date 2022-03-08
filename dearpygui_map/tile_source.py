@@ -1,14 +1,10 @@
 """Map tile sources"""
 
 from dataclasses import dataclass
-import itertools
-from typing import Iterator
 from urllib.parse import urlparse, unquote
 from pathlib import Path
 
 from dearpygui_map.util import user_cache_dir
-
-from .geo import get_tile_xyz_bbox
 
 
 @dataclass
@@ -42,26 +38,6 @@ class TileServer:
             tile_size=self.tile_size,
             base_url=self.base_url,
             subdomains=self.subdomains,
-        )
-
-    def get_tile_specs(
-        self,
-        bbox: tuple[float, float, float, float],
-        zoom_level: int,
-    ) -> Iterator["TileSpec"]:
-        """Get tile specifications for bounding box area
-
-        Args:
-            bbox (tuple[float, float, float, float]):
-                Bounding box lat_min, lon_min, lat_max, lon_max
-            zoom_level (int): Zoom level
-            tile_source (TileServer): Tile source
-
-        Yields:
-            Iterator[TileSpec]: tile specifications
-        """
-        yield from itertools.starmap(
-            self.to_tile_spec, get_tile_xyz_bbox(bbox=bbox, zoom_level=zoom_level)
         )
 
 

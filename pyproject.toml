@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dearpygui_map"
-version = "0.0.1"
+version = "0.1.0"
 description = "Map widget for Dear PyGui"
 authors = ["Mikko Kouhia <mikko.kouhia@iki.fi>"]
 license = "MIT"

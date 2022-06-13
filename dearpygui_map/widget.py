@@ -1,7 +1,6 @@
 """Map widget"""
 
 import itertools
-import sys
 from typing import Iterator
 
 import dearpygui.dearpygui as dpg
@@ -390,11 +389,11 @@ class MapTile:
             return False
 
         width, height, _, data = dpg_image
-        try:
-            with dpg.texture_registry():
-                texture = dpg.add_static_texture(width, height, data)
-        except Exception as err:  # pylint: disable=broad-except
-            sys.stderr.write("Could not add texture - ", err)
+        tile_registry = dpg.add_texture_registry()
+        texture = dpg.add_static_texture(width, height, data, parent=tile_registry)
+        if texture is None:
+            dpg.draw_rectangle(pmin, pmax, fill=(128, 128, 128, 255), parent=parent)
+            return False
 
         self.image_tag = dpg.draw_image(
             texture,

@@ -5,7 +5,7 @@ Map widget for Dear PyGui
 
 ### Requirements
 
-- Python >= 3.7
+- Python >= 3.10
 - Dear PyGui >= 1.3.1
 
 ### Option 1 - pip

@@ -6,7 +6,7 @@ from typing import Iterator
 import dearpygui.dearpygui as dpg
 from dearpygui_map.geo import Coordinate
 from dearpygui_map.io import TileHandler
-from dearpygui_map.tile_source import TileServer, TileSpec
+from dearpygui_map.tile_source import OpenStreetMap, TileServer, TileSpec
 
 
 class MapWidget:
@@ -409,7 +409,7 @@ def add_map_widget(
     height: int,
     center: tuple[float, float],
     zoom_level: int,
-    tile_server: TileServer,
+    tile_server: TileServer = OpenStreetMap,
 ) -> int | str:
     """Add map widget
 
@@ -420,7 +420,10 @@ def add_map_widget(
             latitude, longitude
         zoom_level (int): Tile map zoom level
         tile_server (TileServer): Tile supplier, from
-            dearpygui_map.tile_source
+            dearpygui_map.tile_source. Default: OpenStreetMap
+
+    Returns:
+        int | str: Tag of Dear PyGui drawlist
     """
     map_widget = MapWidget(
         width=width,

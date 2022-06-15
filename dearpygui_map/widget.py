@@ -281,18 +281,21 @@ class TileManager:
         Yields:
             TileSpec: Tile specification
         """
-        # TODO add some margin - download more tiles than should be absolutely required
-        tile_xyz_tuples = self._get_visible_tiles()
+        # Add some margin - download more tiles than should be absolutely required
+        tile_xyz_tuples = self._get_visible_tiles(margin=2)
 
         tile_specs = itertools.starmap(self.tile_server.to_tile_spec, tile_xyz_tuples)
         tile_specs = filter(lambda ts: ts not in self.tiles, tile_specs)
 
         yield from tile_specs
 
-    def _get_visible_tiles(self) -> Iterator[tuple[int, int, int]]:
+    def _get_visible_tiles(self, margin: int = 0) -> Iterator[tuple[int, int, int]]:
         """Calculate which tiles should be visible
 
         Compute given current origin offset, drag and zoom level
+
+        Args:
+            margin: Number of additional tiles around the visible ones.
 
         Yields:
             tuple[int, int, int]: tile (x, y, z) values
@@ -310,12 +313,10 @@ class TileManager:
         max_xy = max_point.tile_xy(self.zoom_level)
 
         yield from itertools.product(
-            range(min_xy[0], max_xy[0] + 1),
-            range(min_xy[1], max_xy[1] + 1),
+            range(min_xy[0] - margin, max_xy[0] + margin + 1),
+            range(min_xy[1] - margin, max_xy[1] + margin + 1),
             (self.zoom_level,),
         )
-
-        return tuple(p.tile_xy(zoom=self.zoom_level) for p in [min_point, max_point])
 
     def draw_tile(self, tile_spec: TileSpec):
         """Draw tile on canvas

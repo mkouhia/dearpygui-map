@@ -95,7 +95,7 @@ def test_center_point_move(tile_manager: TileManager):
 
 def test_manager_initial_tiles(tile_manager: TileManager):
     """Initial tiles are correct"""
-    expected_coord_range = [(2330, 1184), (2333, 1186)]
+    expected_coord_range = [(2328, 1182), (2335, 1188)]
 
     # pylint: disable=protected-access
     received = list(tile_manager._required_tiles_for_view())
@@ -114,7 +114,7 @@ def test_manager_tiles_after_dragging(tile_manager: TileManager):
     Dragging towards origin (upper left) should reveal more tiles frow
     lower right corner.
     """
-    expected_coord_range = [(2332, 1186), (2335, 1188)]
+    expected_coord_range = [(2330, 1184), (2337, 1190)]
 
     # Drag to
     tile_manager.drag_layer(-512, -512)

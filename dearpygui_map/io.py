@@ -89,9 +89,7 @@ class DownloadThread(threading.Thread):
                     shutil.copyfileobj(response, local_file)
                 self.result_queue.put(tile_spec)
             except urllib.error.HTTPError as exc:
-                logger.error(
-                    "%s, url: %s", exc, tile_spec.download_url, exc_info=False
-                )
+                logger.error("%s, url: %s", exc, tile_spec.download_url, exc_info=False)
 
             self.task_queue.task_done()
             # TODO need to store coordinates alongside with image

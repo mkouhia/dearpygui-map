@@ -270,7 +270,9 @@ class TileManager:
         if len(missing_tiles) > 0:
             # FIXME make tile handler persistent (do not spawn new handlers whenever scrolling)
             downloader = TileHandler(
-                missing_tiles, self.draw_tile, thread_count=self.tile_server.thread_limit
+                missing_tiles,
+                self.draw_tile,
+                thread_count=self.tile_server.thread_limit,
             )
             downloader.start()
 
@@ -334,7 +336,7 @@ class TileManager:
 
         min_xy = min_point.tile_xy(self.zoom_level)
         max_xy = max_point.tile_xy(self.zoom_level)
-        
+
         # FIXME min/max cannot exceed map limits
 
         yield from itertools.product(

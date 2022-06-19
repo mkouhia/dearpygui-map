@@ -10,6 +10,9 @@ import urllib.request
 from dearpygui_map.tile_source import TileSpec
 
 
+logger = logging.getLogger(__name__)
+
+
 class TileHandler(threading.Thread):
 
     """Caching, threaded download manager"""
@@ -51,7 +54,7 @@ class TileHandler(threading.Thread):
             try:
                 self.callback(result)
             except Exception as exc:  # pylint: disable=broad-except
-                logging.exception(exc)
+                logger.error(exc)
             finally:
                 self.result_queue.task_done()
 
@@ -86,7 +89,9 @@ class DownloadThread(threading.Thread):
                     shutil.copyfileobj(response, local_file)
                 self.result_queue.put(tile_spec)
             except urllib.error.HTTPError as exc:
-                logging.exception(exc)
+                logger.error(
+                    "%s, url: %s", exc, tile_spec.download_url, exc_info=False
+                )
 
             self.task_queue.task_done()
             # TODO need to store coordinates alongside with image

@@ -7,7 +7,8 @@ import threading
 from typing import Callable, Iterable
 import urllib.request
 
-from dearpygui_map.tile_source import TileSpec
+from ._version import __version__
+from .tile_source import TileSpec
 
 
 logger = logging.getLogger(__name__)
@@ -68,8 +69,7 @@ class DownloadThread(threading.Thread):
         self.task_queue = task_queue
         self.result_queue = result_queue
 
-        # TODO fix proper user agent
-        self.user_agent = "Mozilla/5.0 (Windows NT 6.1; Win64; x64)"
+        self.user_agent = f"dearpygui-map/{__version__}"
 
     def run(self):
         """Run download"""

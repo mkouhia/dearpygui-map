@@ -198,6 +198,8 @@ class TileManager:
         self.zoom_level = zoom_level
         self.tile_server = tile_server
 
+        self.tile_registry = dpg.add_texture_registry()
+
         self.tile_draw_node_id: int | str = None
         self.tiles: list[TileSpec] = []
 
@@ -205,6 +207,7 @@ class TileManager:
         self.origin_offset = (0, 0)
 
         self.set_origin(origin, zoom_level)
+        self._last_origin_xy: tuple[int, int] = None
 
     def set_origin(self, origin: Coordinate, zoom_level: int):
         """Set widget map origin position
@@ -252,25 +255,45 @@ class TileManager:
 
     def draw_layer(self):
         """Update tile layer, if there are too few tiles displayed"""
-        dpg.apply_transform(
-            self.tile_draw_node_id,
-            dpg.create_translation_matrix(
-                [sum(i) for i in zip(self.origin_offset, self.last_drag)]
-            ),
-        )
+        # Only update tiles when positions have changed
+        origin_xy = self._get_origin_xy()
+        if origin_xy == self._last_origin_xy:
+            self._move_dragged_map()
+            return
+
+        self._last_origin_xy = origin_xy
+
+        # TODO purge those tiles from self._image_datas and self.tiles that are too far away to display
 
         missing_tiles = list(self._required_tiles_for_view())
 
-        if len(missing_tiles) == 0:
-            return
+        if len(missing_tiles) > 0:
+            # FIXME make tile handler persistent (do not spawn new handlers whenever scrolling)
+            downloader = TileHandler(
+                missing_tiles, self.draw_tile, thread_count=self.tile_server.thread_limit
+            )
+            downloader.start()
 
-        # TODO purge those tiles from draw layer that are too far away to display
+        self._move_dragged_map()
 
-        # FIXME make tile handler persistent (do not spawn new handlers whenever scrolling)
-        downloader = TileHandler(
-            missing_tiles, self.draw_tile, thread_count=self.tile_server.thread_limit
+    def _get_origin_xy(self) -> tuple[int, int]:
+        """Returns x, y tile that belongs to displayed origin tile."""
+        return tuple(
+            -int(
+                (self.origin_offset[i] + self.last_drag[i])
+                // self.tile_server.tile_size[i]
+            )
+            for i in [0, 1]
         )
-        downloader.start()
+
+    def _move_dragged_map(self):
+        """Move items in tile draw node based on origin offset and last drag"""
+        dpg.apply_transform(
+            self.tile_draw_node_id,
+            dpg.create_translation_matrix(
+                [(self.origin_offset[i] + self.last_drag[i]) for i in [0, 1]]
+            ),
+        )
 
     def _required_tiles_for_view(self) -> Iterator[TileSpec]:
         """Get tiles that need to be downloaded for a view
@@ -311,6 +334,8 @@ class TileManager:
 
         min_xy = min_point.tile_xy(self.zoom_level)
         max_xy = max_point.tile_xy(self.zoom_level)
+        
+        # FIXME min/max cannot exceed map limits
 
         yield from itertools.product(
             range(min_xy[0] - margin, max_xy[0] + margin + 1),
@@ -319,17 +344,33 @@ class TileManager:
         )
 
     def draw_tile(self, tile_spec: TileSpec):
-        """Draw tile on canvas
+        """Draw tile on canvas.
 
-        If image loading fails, draw gray area. Otherwise, add tile
-        spec to self.tiles
+        If tile_spec is already in self.tiles, do nothing.
+        Try to load image from tile_spec.local_storage_path.
+        If image loading fails, draw nothing. Otherwise, add raw texture
+        to self.tile_registry and tile_spec to self.tiles.
         """
         if tile_spec in self.tiles:
             return
 
-        tile = MapTile(tile_spec)
-        if tile.draw_image(parent=self.tile_draw_node_id):
-            self.tiles.append(tile_spec)
+        pmin = tile_spec.canvas_coordinates()
+        pmax = (pmin[0] + tile_spec.tile_size[0], pmin[1] + tile_spec.tile_size[1])
+
+        dpg_image = dpg.load_image(str(tile_spec.local_storage_path))
+        if dpg_image is None:
+            return
+
+        data = dpg_image[3]
+        self.tiles.append(tile_spec)
+
+        texture = dpg.add_raw_texture(
+            width=tile_spec.tile_size[0],
+            height=tile_spec.tile_size[1],
+            default_value=data,
+            parent=self.tile_registry,
+        )
+        dpg.draw_image(texture, pmin, pmax, parent=self.tile_draw_node_id)
 
     def drag_layer(self, delta_x: float, delta_y: float):
         """Move layer to new position
@@ -359,50 +400,6 @@ class TileManager:
             zoom=self.zoom_level,
         )
         self.last_drag = (0.0, 0.0)
-
-
-class MapTile:
-
-    """Map tile"""
-
-    def __init__(self, tile_spec: TileSpec):
-        self.file = tile_spec.local_storage_path
-        self.x_canvas, self.y_canvas = tile_spec.canvas_coordinates()
-        self.width, self.height = tile_spec.tile_size
-        self.tile_spec = tile_spec
-
-        self.image_tag = None
-
-    def draw_image(self, parent: int | str) -> bool:
-        """Draw tile
-
-        Place tile on canvas. If image loading fails, draw gray area.
-
-        Returns:
-            bool: True if image loading failed, False otherwise
-        """
-        pmin = (self.x_canvas, self.y_canvas)
-        pmax = (self.x_canvas + self.width, self.y_canvas + self.height)
-
-        dpg_image = dpg.load_image(str(self.file))
-        if dpg_image is None:
-            dpg.draw_rectangle(pmin, pmax, fill=(128, 128, 128, 255), parent=parent)
-            return False
-
-        width, height, _, data = dpg_image
-        tile_registry = dpg.add_texture_registry()
-        texture = dpg.add_static_texture(width, height, data, parent=tile_registry)
-        if texture is None:
-            dpg.draw_rectangle(pmin, pmax, fill=(128, 128, 128, 255), parent=parent)
-            return False
-
-        self.image_tag = dpg.draw_image(
-            texture,
-            pmin,
-            pmax,
-            parent=parent,
-        )
-        return True
 
 
 def add_map_widget(
